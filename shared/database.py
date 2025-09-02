@@ -25,7 +25,13 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:
-    def __init__(self, path: str = "./chroma_db"):
+    def __init__(self, path: str = None):
+        if path is None:
+            # Use memory database on cloud for better performance
+            if 'STREAMLIT_CLOUD' in os.environ:
+                path = ":memory:"
+            else:
+                path = "./chroma_db"
         try:
             # Initialize ChromaDB with error handling
             self.client = chromadb.PersistentClient(path=path)
@@ -38,7 +44,6 @@ class DatabaseManager:
             # Try alternative initialization
             try:
                 logger.warning("Attempting alternative ChromaDB initialization...")
-                import chromadb.config
                 settings = chromadb.config.Settings(anonymized_telemetry=False)
                 self.client = chromadb.PersistentClient(path=path, settings=settings)
                 self.jobs = self.client.get_or_create_collection("jobs")

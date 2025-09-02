@@ -11,6 +11,17 @@ from sentence_transformers import SentenceTransformer
 import PyPDF2
 import docx
 
+# Optimize for Streamlit Cloud
+if 'STREAMLIT_CLOUD' in os.environ:
+    # Use smaller models on cloud
+    @st.cache_resource
+    def load_sentence_model():
+        return SentenceTransformer('paraphrase-MiniLM-L3-v2')  # Smaller model
+else:
+    @st.cache_resource  
+    def load_sentence_model():
+        return SentenceTransformer('all-MiniLM-L6-v2')  # Full model
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -352,6 +363,13 @@ def basic_candidate_matching_module(db: DatabaseManager, sentence_model, resume_
             accept_multiple_files=True
         )
         
+        MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit
+
+        for uploaded_file in uploaded_files:
+            if uploaded_file.size > MAX_FILE_SIZE:
+                st.error(f"File {uploaded_file.name} is too large. Maximum size: 10MB")
+                continue
+
         if uploaded_files and st.button("🚀 Process Resumes", type="primary"):
             progress_bar = st.progress(0)
             status_text = st.empty()
