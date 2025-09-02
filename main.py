@@ -11,7 +11,7 @@ from sentence_transformers import SentenceTransformer
 import PyPDF2
 import docx
 
-# Optimize for Streamlit Cloud
+"""# Optimize for Streamlit Cloud
 if 'STREAMLIT_CLOUD' in os.environ:
     # Use smaller models on cloud
     @st.cache_resource
@@ -21,7 +21,7 @@ else:
     @st.cache_resource  
     def load_sentence_model():
         return SentenceTransformer('all-MiniLM-L6-v2')  # Full model
-
+"""
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
