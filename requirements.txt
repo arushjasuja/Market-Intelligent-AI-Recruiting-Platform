@@ -19,4 +19,4 @@ requests
 beautifulsoup4
 pandas
 numpy
-sqlite3-binary
+pysqlite3-binary
