@@ -15,6 +15,7 @@ spacy
 python-docx
 python-dateutil
 PyPDF2
+pysqlite3-binary
 requests
 beautifulsoup4
 pandas

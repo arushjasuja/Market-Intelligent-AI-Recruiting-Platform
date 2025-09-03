@@ -18,60 +18,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Import custom modules with specific error handling
+# Import custom modules
 try:
     from shared import Job, Candidate, MarketReport, MatchResult, DatabaseManager
-except ImportError as e:
-    st.error(f"❌ Core module import failed: {e}")
-    st.markdown("""
-    **Fix**: Ensure all files are in the correct directory structure:
-    ```
-    shared/
-    ├── __init__.py
-    ├── models.py
-    └── database.py
-    ```
-    """)
-    st.stop()
-
-try:
     from agents.crewai_market import MarketIntelligenceCrew
-except ImportError as e:
-    st.error(f"⚠️ CrewAI module not available: {e}")
-    st.markdown("**Fix**: `pip install crewai==0.41.0`")
-    MarketIntelligenceCrew = None
-
-try:
     from agents.langchain_content import LangChainContentGenerator
-except ImportError as e:
-    st.error(f"⚠️ LangChain module not available: {e}")
-    st.markdown("**Fix**: `pip install langchain==0.1.0 langchain-openai==0.0.8`")
-    LangChainContentGenerator = None
-
-try:
     from agents.autogen_matching import AutoGenMatchingSystem
-except ImportError as e:
-    st.error(f"⚠️ AutoGen module not available: {e}")
-    st.markdown("""
-    **Fix AutoGen Installation:**
-    ```bash
-    pip install pyautogen==0.2.25
-    ```
-    
-    If still failing, try:
-    ```bash
-    pip uninstall pyautogen
-    pip install pyautogen==0.2.25 --no-cache-dir
-    ```
-    """)
-    AutoGenMatchingSystem = None
-
-try:
     from agents.nlp_parser import EnhancedResumeParser
 except ImportError as e:
-    st.error(f"⚠️ NLP Parser module not available: {e}")
-    st.markdown("**Fix**: `python -m spacy download en_core_web_sm`")
-    EnhancedResumeParser = None
+    st.error(f"Module import failed: {e}")
+    st.stop()
 
 # Load environment variables and configure Streamlit
 load_dotenv()
@@ -82,76 +38,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-def create_basic_resume_parser():
-    """Create a basic fallback resume parser when NLP is unavailable"""
-    class BasicResumeParser:
-        def parse_resume(self, text: str, filename: str = "") -> dict:
-            """Basic resume parsing without NLP"""
-            import re
-            
-            # Extract name from filename
-            name = "Unknown Candidate"
-            if filename:
-                name = re.sub(r'[^\w\s]', ' ', filename.replace('.pdf', '')).strip().title()
-            
-            # Basic skill extraction
-            basic_skills = []
-            common_skills = [
-                "Python", "Java", "JavaScript", "SQL", "AWS", "React", "Docker", 
-                "Git", "Linux", "Node.js", "HTML", "CSS", "Machine Learning",
-                "TensorFlow", "PyTorch", "Kubernetes", "MongoDB", "PostgreSQL"
-            ]
-            
-            text_lower = text.lower()
-            for skill in common_skills:
-                if skill.lower() in text_lower:
-                    basic_skills.append(skill)
-            
-            # Basic experience extraction
-            experience_patterns = [
-                r'(\d{1,2})\+?\s*years?\s*(?:of\s*)?experience',
-                r'(\d{1,2})\+?\s*yrs?\s*experience'
-            ]
-            
-            experience_years = 0
-            for pattern in experience_patterns:
-                matches = re.findall(pattern, text_lower)
-                if matches:
-                    experience_years = max([int(m) for m in matches if m.isdigit()])
-                    break
-            
-            return {
-                "name": name,
-                "skills": basic_skills,
-                "experience_years": experience_years,
-                "education": [],
-                "certifications": [],
-                "previous_companies": [],
-                "resume_text": text
-            }
-    
-    return BasicResumeParser()
-
 @st.cache_resource
 def initialize_components():
     """Initialize core components with caching"""
     try:
         db = DatabaseManager()
         sentence_model = SentenceTransformer('all-MiniLM-L6-v2')
-        
-        # Handle case where EnhancedResumeParser might not be available
-        resume_parser = None
-        if EnhancedResumeParser is not None:
-            try:
-                resume_parser = EnhancedResumeParser()
-                logger.info("Enhanced NLP resume parser initialized")
-            except Exception as e:
-                logger.warning(f"Enhanced resume parser initialization failed: {e}")
-                st.warning("⚠️ Enhanced NLP parsing unavailable - using basic parser")
-                resume_parser = create_basic_resume_parser()
-        else:
-            st.warning("⚠️ spaCy not available - using basic resume parser")
-            resume_parser = create_basic_resume_parser()
+        resume_parser = EnhancedResumeParser()
         
         logger.info("Core components initialized successfully")
         return db, sentence_model, resume_parser
@@ -200,44 +93,29 @@ def initialize_ai_agents(api_key: str, sentence_model, resume_parser):
     """Initialize all AI agents with error handling"""
     agents = {}
     
-    # CrewAI Market Intelligence
-    if MarketIntelligenceCrew is not None:
-        try:
-            agents['market_crew'] = MarketIntelligenceCrew(api_key)
-            logger.info("CrewAI market intelligence initialized")
-        except Exception as e:
-            logger.error(f"CrewAI initialization failed: {e}")
-            st.sidebar.error("⚠️ CrewAI unavailable")
-    else:
-        st.sidebar.error("❌ CrewAI not installed")
+    try:
+        agents['market_crew'] = MarketIntelligenceCrew(api_key)
+        logger.info("CrewAI market intelligence initialized")
+    except Exception as e:
+        logger.error(f"CrewAI initialization failed: {e}")
+        st.sidebar.error("⚠️ CrewAI unavailable")
     
-    # LangChain Content Generator
-    if LangChainContentGenerator is not None:
-        try:
-            agents['content_generator'] = LangChainContentGenerator(api_key)
-            logger.info("LangChain content generator initialized")
-        except Exception as e:
-            logger.error(f"LangChain initialization failed: {e}")
-            st.sidebar.error("⚠️ LangChain unavailable")
-    else:
-        st.sidebar.error("❌ LangChain not installed")
+    try:
+        agents['content_generator'] = LangChainContentGenerator(api_key)
+        logger.info("LangChain content generator initialized")
+    except Exception as e:
+        logger.error(f"LangChain initialization failed: {e}")
+        st.sidebar.error("⚠️ LangChain unavailable")
     
-    # AutoGen Matching System
-    if AutoGenMatchingSystem is not None:
-        try:
-            agents['matching_system'] = AutoGenMatchingSystem(api_key, sentence_model)
-            logger.info("AutoGen matching system initialized")
-        except Exception as e:
-            logger.error(f"AutoGen initialization failed: {e}")
-            st.sidebar.error("⚠️ AutoGen unavailable")
-    else:
-        st.sidebar.error("❌ AutoGen not installed - see installation instructions above")
+    try:
+        agents['matching_system'] = AutoGenMatchingSystem(api_key, sentence_model)
+        logger.info("AutoGen matching system initialized")
+    except Exception as e:
+        logger.error(f"AutoGen initialization failed: {e}")
+        st.sidebar.error("⚠️ AutoGen unavailable")
     
-    # Resume Parser (always available as fallback)
-    if resume_parser is not None:
-        agents['resume_parser'] = resume_parser
+    agents['resume_parser'] = resume_parser
     
-    # OpenAI Client
     try:
         agents['openai_client'] = OpenAI(api_key=api_key)
         logger.info("OpenAI client initialized")
@@ -326,112 +204,11 @@ def main():
             st.error("❌ LangChain not available. Check API key and connection.")
             
     else:  # Candidate Matching
-        if 'matching_system' in agents and agents['resume_parser'] is not None:
+        if 'matching_system' in agents:
             candidate_matching_module(db, agents['matching_system'], 
                                     agents['resume_parser'], jobs, candidates)
-        elif agents['resume_parser'] is not None:
-            # Fallback to basic matching without AutoGen
-            basic_candidate_matching_module(db, sentence_model, agents['resume_parser'], jobs, candidates)
         else:
-            st.error("❌ Resume processing unavailable. Install required dependencies.")
-
-def basic_candidate_matching_module(db: DatabaseManager, sentence_model, resume_parser, jobs: list, candidates: list):
-    """Basic candidate matching without AutoGen"""
-    st.title("🎯 Basic Candidate Matching")
-    st.info("⚠️ Running in basic mode. Install AutoGen for enhanced AI matching: `pip install pyautogen==0.2.25`")
-    
-    # Create tabs for different functionalities  
-    tab1, tab2 = st.tabs(["📄 Resume Processing", "🎯 Basic Matching"])
-    
-    with tab1:
-        st.subheader("📄 Resume Processing")
-        
-        uploaded_files = st.file_uploader(
-            "📁 Upload Resume Files", 
-            type=["pdf", "docx", "txt"], 
-            accept_multiple_files=True
-        )
-        
-        if uploaded_files and st.button("🚀 Process Resumes", type="primary"):
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            
-            for i, uploaded_file in enumerate(uploaded_files):
-                try:
-                    status_text.text(f"Processing {uploaded_file.name}...")
-                    
-                    # Read file content
-                    file_content = ""
-                    if uploaded_file.type == "application/pdf":
-                        reader = PyPDF2.PdfReader(uploaded_file)
-                        file_content = "".join(page.extract_text() or "" for page in reader.pages)
-                    elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                        doc = docx.Document(uploaded_file)
-                        file_content = "\n".join(paragraph.text for paragraph in doc.paragraphs)
-                    else:
-                        file_content = uploaded_file.read().decode('utf-8')
-                    
-                    # Parse resume
-                    parsed_data = resume_parser.parse_resume(file_content, uploaded_file.name)
-                    candidate = Candidate(**parsed_data)
-                    db.store_candidate(candidate)
-                    
-                    progress_bar.progress((i + 1) / len(uploaded_files))
-                    
-                except Exception as e:
-                    st.error(f"Error processing {uploaded_file.name}: {e}")
-            
-            progress_bar.empty()
-            status_text.empty()
-            st.success(f"✅ Processed {len(uploaded_files)} resumes")
-    
-    with tab2:
-        if not jobs or not candidates:
-            st.warning("⚠️ Need both jobs and candidates for matching")
-            return
-        
-        # Job selection
-        job_options = {f"{j.title} at {j.company}": j for j in jobs}
-        selected_job_key = st.selectbox("Select Job", list(job_options.keys()))
-        selected_job = job_options[selected_job_key]
-        
-        if st.button("🚀 Run Basic Matching", type="primary"):
-            with st.spinner("🔍 Analyzing candidates..."):
-                from sklearn.metrics.pairwise import cosine_similarity
-                
-                matches = []
-                for candidate in candidates[:10]:  # Limit for demo
-                    # Basic vector similarity
-                    job_text = f"{selected_job.title} {selected_job.description} {' '.join(selected_job.skills_required)}"
-                    candidate_text = f"{candidate.resume_text} {' '.join(candidate.skills)}"
-                    
-                    job_embedding = sentence_model.encode([job_text])
-                    candidate_embedding = sentence_model.encode([candidate_text])
-                    
-                    similarity = cosine_similarity(job_embedding, candidate_embedding)[0][0]
-                    match_percentage = int(similarity * 100)
-                    
-                    # Basic skill matching
-                    matching_skills = [s for s in selected_job.skills_required if s in candidate.skills]
-                    
-                    matches.append({
-                        "candidate": candidate,
-                        "match_percentage": match_percentage,
-                        "matching_skills": matching_skills,
-                        "similarity": similarity
-                    })
-                
-                matches.sort(key=lambda x: x["similarity"], reverse=True)
-                
-                st.subheader("🏆 Top Matches")
-                for i, match in enumerate(matches[:5]):
-                    candidate = match["candidate"]
-                    with st.expander(f"{candidate.name} - {match['match_percentage']}% Match"):
-                        col1, col2 = st.columns(2)
-                        col1.write(f"**Skills**: {', '.join(candidate.skills)}")
-                        col1.write(f"**Experience**: {candidate.experience_years} years")
-                        col2.write(f"**Matching Skills**: {', '.join(match['matching_skills'])}")
-                        col2.write(f"**Match Score**: {match['match_percentage']}%")
+            st.error("❌ AutoGen not available. Check API key and connection.")
 
 def market_intelligence_module(db: DatabaseManager, crew: MarketIntelligenceCrew):
     """CrewAI-powered market intelligence module"""

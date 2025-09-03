@@ -1,24 +1,10 @@
-# Handle SQLite3 compatibility for ChromaDB
 import sys
-import logging
-
-# Try to handle ChromaDB SQLite requirements
-try:
-    # First, try the standard approach for systems with pysqlite3
-    __import__('pysqlite3')
-    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-except ImportError:
-    # Fallback to standard sqlite3 if pysqlite3 is not available
-    try:
-        import sqlite3
-        # This is fine for most systems
-        pass
-    except ImportError:
-        # Last resort fallback
-        pass
+__import__('pysqlite3')
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
 import chromadb
 import json
+import logging
 from typing import List
 from datetime import datetime
 
@@ -27,27 +13,13 @@ logger = logging.getLogger(__name__)
 class DatabaseManager:
     def __init__(self, path: str = "./chroma_db"):
         try:
-            # Initialize ChromaDB with error handling
             self.client = chromadb.PersistentClient(path=path)
             self.jobs = self.client.get_or_create_collection("jobs")
             self.candidates = self.client.get_or_create_collection("candidates")
             self.reports = self.client.get_or_create_collection("reports")
-            logger.info(f"Database initialized successfully at {path}")
         except Exception as e:
             logger.error(f"Database initialization failed: {e}")
-            # Try alternative initialization
-            try:
-                logger.warning("Attempting alternative ChromaDB initialization...")
-                import chromadb.config
-                settings = chromadb.config.Settings(anonymized_telemetry=False)
-                self.client = chromadb.PersistentClient(path=path, settings=settings)
-                self.jobs = self.client.get_or_create_collection("jobs")
-                self.candidates = self.client.get_or_create_collection("candidates")
-                self.reports = self.client.get_or_create_collection("reports")
-                logger.info("Alternative database initialization successful")
-            except Exception as e2:
-                logger.error(f"Alternative database initialization also failed: {e2}")
-                raise RuntimeError(f"Cannot initialize database. Try installing ChromaDB dependencies: {e}")
+            raise RuntimeError(f"Cannot initialize database: {e}")
     
     def _serialize_data(self, data: dict) -> dict:
         """Serialize complex data types for ChromaDB storage"""
@@ -88,7 +60,6 @@ class DatabaseManager:
                 metadatas=[data],
                 ids=[job.id]
             )
-            logger.info(f"Job stored successfully: {job.id}")
         except Exception as e:
             logger.error(f"Failed to store job {job.id}: {e}")
             raise
@@ -101,7 +72,6 @@ class DatabaseManager:
                 metadatas=[data],
                 ids=[candidate.id]
             )
-            logger.info(f"Candidate stored successfully: {candidate.id}")
         except Exception as e:
             logger.error(f"Failed to store candidate {candidate.id}: {e}")
             raise
@@ -114,7 +84,6 @@ class DatabaseManager:
                 metadatas=[data],
                 ids=[report.id]
             )
-            logger.info(f"Report stored successfully: {report.id}")
         except Exception as e:
             logger.error(f"Failed to store report {report.id}: {e}")
             raise
@@ -134,8 +103,6 @@ class DatabaseManager:
                     jobs.append(Job(**data))
                 except Exception as e:
                     logger.warning(f"Skipping invalid job record: {e}")
-            
-            logger.info(f"Retrieved {len(jobs)} jobs")
             return jobs
         except Exception as e:
             logger.error(f"Failed to retrieve jobs: {e}")
@@ -156,8 +123,6 @@ class DatabaseManager:
                     candidates.append(Candidate(**data))
                 except Exception as e:
                     logger.warning(f"Skipping invalid candidate record: {e}")
-            
-            logger.info(f"Retrieved {len(candidates)} candidates")
             return candidates
         except Exception as e:
             logger.error(f"Failed to retrieve candidates: {e}")
@@ -178,8 +143,6 @@ class DatabaseManager:
                     reports.append(MarketReport(**data))
                 except Exception as e:
                     logger.warning(f"Skipping invalid report record: {e}")
-            
-            logger.info(f"Retrieved {len(reports)} reports")
             return reports
         except Exception as e:
             logger.error(f"Failed to retrieve reports: {e}")
