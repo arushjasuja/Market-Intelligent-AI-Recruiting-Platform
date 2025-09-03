@@ -3,7 +3,7 @@ crewai
 langchain
 langchain-openai
 langchain-community
-pyautogen==0.2.25
+pyautogen
 openai
 chromadb
 pydantic
